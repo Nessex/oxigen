@@ -275,7 +275,6 @@ impl<'a> FdParams<'a> {
             fs::remove_file(&sas_file).ok();
             if (status_code != 0 && status_code <= 22) || status_code > 24 {
                 reruns += 1;
-                std::thread::sleep(Duration::from_millis(2000));
             }
         }
         // 30-40 codes are errors, maximum time
@@ -350,7 +349,7 @@ impl<'a> Genotype<u8> for FdParams<'a> {
         let hash = hasher.finish();
 
         let total_time: u128 = executions
-            .par_iter()
+            .iter()
             .map(|(dom, prob)| Self::run_fd(&hash, self.fd_path, &dom, &prob, &search))
             .sum();
 

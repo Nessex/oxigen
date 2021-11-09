@@ -54,33 +54,29 @@ impl Selection for SelectionFunctions {
                 winners
             }
             Tournaments(n_tournaments) => {
-                let (sender, receiver) = channel();
                 let mut winners = Vec::with_capacity(n_tournaments.0);
                 Range {
                     start: 0,
                     end: n_tournaments.0,
                 }
-                .into_par_iter()
-                .for_each_with(sender, |s, _t| {
+                .into_iter()
+                .for_each(|_t| {
                     let mut rgen = SmallRng::from_entropy();
                     let mut fighters = Vec::with_capacity(selection_rate);
                     for _f in 0..selection_rate {
                         let sel = rgen.sample(Uniform::from(0..fitnesses.len()));
                         fighters.push((sel, fitnesses[sel]));
                     }
-                    s.send(
-                        fighters
-                            .par_iter()
+
+                    let win = fighters
+                            .iter()
                             .max_by(|x, y| x.1.partial_cmp(&y.1).unwrap())
                             .unwrap()
-                            .0,
-                    )
-                    .unwrap();
+                            .0;
+
+                    winners.push(win);
                 });
 
-                for win in receiver {
-                    winners.push(win);
-                }
                 winners
             }
             Cup => {
@@ -140,26 +136,25 @@ impl Selection for SelectionFunctions {
 
 impl SelectionFunctions {
     fn cup_phase_fight(phases: &mut Vec<Vec<(usize, f64)>>, phase: usize) {
-        let (sender, receiver) = channel();
 
         Range {
             start: 0,
             end: phases[phase].len() / 2,
         }
-        .into_par_iter()
-        .for_each_with(sender, |s, i| {
+        .into_iter()
+        .for_each(|i| {
             let ind1 = i * 2;
             let ind2 = ind1 + 1;
 
-            if phases[phase][ind1].1 >= phases[phase][ind2].1 {
-                s.send((i, phases[phase][ind1])).unwrap();
+            let (i, child) = if phases[phase][ind1].1 >= phases[phase][ind2].1 {
+                (i, phases[phase][ind1])
             } else {
-                s.send((i, phases[phase][ind2])).unwrap();
-            }
-        });
-        for (i, child) in receiver {
+                (i, phases[phase][ind2])
+            };
+
             phases[phase - 1][i] = child;
-        }
+        });
+
         if phase > 1 {
             Self::cup_phase_fight(phases, phase - 1);
         }

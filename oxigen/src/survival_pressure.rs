@@ -248,7 +248,7 @@ impl SurvivalPressureFunctions {
         let mut killed = Vec::with_capacity(parents_children.len() * 2);
         for repr in parents_children.iter() {
             let most_similar_0 = population
-                .par_iter()
+                .iter()
                 .enumerate()
                 // Children start at population_size (added at the end)
                 .filter(|(i, _el)| *i < population_size && !killed.contains(i))
@@ -259,7 +259,7 @@ impl SurvivalPressureFunctions {
             killed.push(most_similar_0);
 
             let most_similar_1 = population
-                .par_iter()
+                .iter()
                 .enumerate()
                 // Children start at population_size (added at the end)
                 .filter(|(i, _el)| *i < population_size && !killed.contains(i))
@@ -271,7 +271,7 @@ impl SurvivalPressureFunctions {
         }
         // killed must be sorted because the indexes of elements at the right
         // change when removing elements from vector
-        killed.par_sort_unstable();
+        killed.sort_unstable();
         for el in killed.iter().rev() {
             population.remove(*el);
         }
@@ -282,19 +282,16 @@ impl SurvivalPressureFunctions {
         parents_children: &[Reproduction],
     ) {
         let mut killed = Vec::with_capacity(parents_children.len() * 2);
-        let (sender, receiver) = channel();
         parents_children
-            .par_iter()
-            .for_each_with(sender, |s, repr| {
-                s.send(repr.parents).unwrap();
+            .iter()
+            .for_each(|repr| {
+                killed.push(repr.parents.0);
+                killed.push(repr.parents.1);
             });
-        for parents in receiver {
-            killed.push(parents.0);
-            killed.push(parents.1);
-        }
+
         // killed must be sorted because the indexes of elements at the right
         // change when removing elements from vector
-        killed.par_sort_unstable();
+        killed.sort_unstable();
         killed.dedup();
         for el in killed.iter().rev() {
             population.remove(*el);
@@ -309,7 +306,7 @@ impl SurvivalPressureFunctions {
         let mut killed = Vec::with_capacity(parents_children.len() * 2);
         for repr in parents_children.iter() {
             let most_similar_0 = population
-                .par_iter()
+                .iter()
                 .enumerate()
                 // Children start at population_size (added at the end)
                 .filter(|(i, _el)| *i < population_size && !killed.contains(i))
@@ -326,7 +323,7 @@ impl SurvivalPressureFunctions {
             }
 
             let most_similar_1 = population
-                .par_iter()
+                .iter()
                 .enumerate()
                 // Children start at population_size (added at the end)
                 .filter(|(i, _el)| *i < population_size && !killed.contains(i))
@@ -344,7 +341,7 @@ impl SurvivalPressureFunctions {
         }
         // killed must be sorted because the indexes of elements at the right
         // change when removing elements from vector
-        killed.par_sort_unstable();
+        killed.sort_unstable();
         for el in killed.iter().rev() {
             population.remove(*el);
         }
@@ -399,7 +396,7 @@ impl SurvivalPressureFunctions {
         }
         // killed must be sorted because the indexes of elements at the right
         // change when removing elements from vector
-        killed.par_sort_unstable();
+        killed.sort_unstable();
         killed.dedup();
         for el in killed.iter().rev() {
             population.remove(*el);
@@ -460,7 +457,7 @@ impl SurvivalPressureFunctions {
         }
         // killed must be sorted because the indexes of elements at the right
         // change when removing elements from vector
-        killed.par_sort_unstable();
+        killed.sort_unstable();
         killed.dedup();
         for el in killed.iter().rev() {
             population.remove(*el);
@@ -501,7 +498,7 @@ impl SurvivalPressureFunctions {
         }
         for child in children {
             let most_similar = choosable
-                .par_iter()
+                .iter()
                 .enumerate()
                 .map(|(i, el)| (i, population[child].ind.distance(&population[*el].ind)))
                 .min_by(|x, y| x.1.partial_cmp(&y.1).unwrap())
@@ -512,7 +509,7 @@ impl SurvivalPressureFunctions {
         }
         // killed must be sorted because the indexes of elements at the right
         // change when removing elements from vector
-        killed.par_sort_unstable();
+        killed.sort_unstable();
         for el in killed.iter().rev() {
             population.remove(*el);
         }
@@ -552,7 +549,7 @@ impl SurvivalPressureFunctions {
         }
         for child in children {
             let most_similar = choosable
-                .par_iter()
+                .iter()
                 .enumerate()
                 .map(|(i, el)| (i, population[child].ind.distance(&population[*el].ind)))
                 .min_by(|x, y| x.1.partial_cmp(&y.1).unwrap())
@@ -569,7 +566,7 @@ impl SurvivalPressureFunctions {
         }
         // killed must be sorted because the indexes of elements at the right
         // change when removing elements from vector
-        killed.par_sort_unstable();
+        killed.sort_unstable();
         for el in killed.iter().rev() {
             population.remove(*el);
         }
@@ -588,7 +585,7 @@ impl SurvivalPressureFunctions {
             let chosen = rgen.sample(Uniform::from(0..choosable.len()));
 
             let most_similar = choosable
-                .par_iter()
+                .iter()
                 .enumerate()
                 .filter(|(i, _el)| *i != chosen)
                 .map(|(i, el)| (i, population[chosen].ind.distance(&population[*el].ind)))
@@ -613,7 +610,7 @@ impl SurvivalPressureFunctions {
         }
         // killed must be sorted because the indexes of elements at the right
         // change when removing elements from vector
-        killed.par_sort_unstable();
+        killed.sort_unstable();
         for el in killed.iter().rev() {
             population.remove(*el);
         }
@@ -633,7 +630,7 @@ impl SurvivalPressureFunctions {
             .enumerate()
             .map(|_el| Vec::with_capacity(population.len()))
             .collect();
-        dists.par_iter_mut().enumerate().for_each(|(i, dists)| {
+        dists.iter_mut().enumerate().for_each(|(i, dists)| {
             for (j, indwf) in population.iter().enumerate() {
                 dists.push((j, population[i].ind.distance(&indwf.ind)));
             }
@@ -643,7 +640,7 @@ impl SurvivalPressureFunctions {
             // Get the element in the population that has the biggest similarity
             // with any other and that individual
             let (chosen, (most_similar, _distance)) = dists
-                .par_iter()
+                .iter()
                 .enumerate()
                 .filter(|(i, _el)| !killed.contains(i))
                 .map(|(i, distances)| {
@@ -670,7 +667,7 @@ impl SurvivalPressureFunctions {
         }
         // killed must be sorted because the indexes of elements at the right
         // change when removing elements from vector
-        killed.par_sort_unstable();
+        killed.sort_unstable();
         for i in killed.iter().rev() {
             population.remove(*i);
         }
@@ -680,7 +677,7 @@ impl SurvivalPressureFunctions {
 fn sort_population<T: PartialEq + Send + Sync, G: Genotype<T>>(
     population: &mut [IndWithFitness<T, G>],
 ) {
-    population.par_sort_unstable_by(|el1, el2| {
+    population.sort_unstable_by(|el1, el2| {
         el2.fitness
             .unwrap()
             .fitness
@@ -692,7 +689,7 @@ fn sort_population<T: PartialEq + Send + Sync, G: Genotype<T>>(
 fn sort_population_by_age<T: PartialEq + Send + Sync, G: Genotype<T>>(
     population: &mut [IndWithFitness<T, G>],
 ) {
-    population.par_sort_unstable_by(|el1, el2| {
+    population.sort_unstable_by(|el1, el2| {
         el2.fitness
             .unwrap()
             .age

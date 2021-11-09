@@ -476,11 +476,11 @@ impl<T: PartialEq + Send + Sync, Ind: Genotype<T>> GeneticExecution<T, Ind> {
             last_progresses.remove(0);
         }
 
-        last_progresses.par_iter().sum::<f64>() / last_progresses.len() as f64
+        last_progresses.iter().sum::<f64>() / last_progresses.len() as f64
     }
 
     fn fix(&mut self) {
-        self.population.par_iter_mut().for_each(|indwf| {
+        self.population.iter_mut().for_each(|indwf| {
             if indwf.ind.fix() {
                 indwf.fitness = None
             }
@@ -488,7 +488,7 @@ impl<T: PartialEq + Send + Sync, Ind: Genotype<T>> GeneticExecution<T, Ind> {
     }
 
     fn update_age(&mut self) {
-        self.population.par_iter_mut().for_each(|indwf| {
+        self.population.iter_mut().for_each(|indwf| {
             if let Some(mut fit) = indwf.fitness {
                 fit.age += 1;
                 indwf.fitness = Some(fit);
@@ -506,12 +506,11 @@ impl<T: PartialEq + Send + Sync, Ind: Genotype<T>> GeneticExecution<T, Ind> {
     #[cfg(feature = "global_cache")]
     fn compute_fitnesses(&mut self, refresh_on_nocache: bool) {
         if cfg!(feature = "global_cache") && self.cache_fitness && self.global_cache {
-            let (sender, receiver) = channel();
             self.population
-                .par_iter()
+                .iter()
                 .enumerate()
                 .filter(|(_i, indwf)| indwf.fitness.is_none())
-                .for_each_with(sender, |s, (i, indwf)| {
+                .for_each(|(i, indwf)| {
                     let hashed_ind = self.population[i].ind.hash();
                     let new_fit_value = {
                         match self.cache_map.get(&hashed_ind) {
@@ -519,20 +518,17 @@ impl<T: PartialEq + Send + Sync, Ind: Genotype<T>> GeneticExecution<T, Ind> {
                             None => indwf.ind.fitness(),
                         }
                     };
-                    s.send((i, new_fit_value, hashed_ind)).unwrap();
+
+                    self.population[i].fitness = Some(Fitness {
+                        age: 0,
+                        fitness: new_fit_value,
+                        original_fitness: new_fit_value,
+                        age_effect: 0.0,
+                        refitness_effect: 0.0,
+                    });
+                    // insert in cache if it is not already in it
+                    self.cache_map.entry(hashed_ind).or_insert(new_fit_value);
                 });
-            for (i, new_fit_value, hashed_ind) in receiver {
-                // only none fitness individuals are sent to the receiver
-                self.population[i].fitness = Some(Fitness {
-                    age: 0,
-                    fitness: new_fit_value,
-                    original_fitness: new_fit_value,
-                    age_effect: 0.0,
-                    refitness_effect: 0.0,
-                });
-                // insert in cache if it is not already in it
-                self.cache_map.entry(hashed_ind).or_insert(new_fit_value);
-            }
         } else {
             self.compute_fitnesses_without_global_cache(refresh_on_nocache);
         }
@@ -545,7 +541,7 @@ impl<T: PartialEq + Send + Sync, Ind: Genotype<T>> GeneticExecution<T, Ind> {
 
     fn compute_fitnesses_without_global_cache(&mut self, refresh_on_nocache: bool) {
         self.population
-            .par_iter_mut()
+            .iter_mut()
             .filter(|indwf| {
                 if refresh_on_nocache {
                     true
@@ -578,7 +574,7 @@ impl<T: PartialEq + Send + Sync, Ind: Genotype<T>> GeneticExecution<T, Ind> {
 
     fn age_unfitness(&mut self) {
         let age_function = &self.age;
-        self.population.par_iter_mut().for_each(|indwf| {
+        self.population.iter_mut().for_each(|indwf| {
             if let Some(fit) = indwf.fitness {
                 let age_exceed: i64 = fit.age as i64 - age_function.age_threshold() as i64;
                 if age_exceed >= 0 {
@@ -621,14 +617,13 @@ impl<T: PartialEq + Send + Sync, Ind: Genotype<T>> GeneticExecution<T, Ind> {
     fn cross(&mut self, selected: &[usize]) -> Vec<Reproduction> {
         let reprs_number = (selected.len() + 1) / 2;
         let mut reprs = Vec::with_capacity(reprs_number);
-        let (sender, receiver) = channel();
 
         std::ops::Range {
             start: 0,
             end: reprs_number,
         }
-        .into_par_iter()
-        .for_each_with(sender, |s, i| {
+        .into_iter()
+        .for_each(|i| {
             let ind1 = i * 2;
             let mut ind2 = ind1 + 1;
             // If the number of selected individuals is odd, the last crossover is done
@@ -640,10 +635,11 @@ impl<T: PartialEq + Send + Sync, Ind: Genotype<T>> GeneticExecution<T, Ind> {
                 &self.population[selected[ind1]].ind,
                 &self.population[selected[ind2]].ind,
             );
-            s.send((selected[ind1], selected[ind2], crossed1, crossed2))
-                .unwrap();
-        });
-        for (parent1, parent2, child1, child2) in receiver {
+            let parent1 = selected[ind1];
+            let parent2 = selected[ind2];
+            let child1 = crossed1;
+            let child2 = crossed2;
+
             self.population.push(IndWithFitness {
                 ind: child1,
                 fitness: None,
@@ -658,12 +654,13 @@ impl<T: PartialEq + Send + Sync, Ind: Genotype<T>> GeneticExecution<T, Ind> {
                 parents: (parent1, parent2),
                 children: (self.population.len() - 2, self.population.len() - 1),
             });
-        }
+        });
+
         reprs
     }
 
     fn mutate(&mut self, mutation_rate: f64) {
-        self.population.par_iter_mut().for_each(|indwf| {
+        self.population.iter_mut().for_each(|indwf| {
             let mut rgen = SmallRng::from_entropy();
             for gen in 0..indwf.ind.iter().len() {
                 let random: f64 = rgen.sample(Standard);
@@ -676,12 +673,11 @@ impl<T: PartialEq + Send + Sync, Ind: Genotype<T>> GeneticExecution<T, Ind> {
     }
 
     fn refitness(&mut self, generation: u64, progress: f64, n_solutions: usize) {
-        let (sender, receiver) = channel();
-
+        let mut fits = Vec::new();
         self.population
-            .par_iter()
+            .iter()
             .enumerate()
-            .for_each_with(sender, |s, (i, indwf)| {
+            .for_each(|(i, indwf)| {
                 if let Some(fit) = indwf.fitness {
                     let new_fit = self.population_refitness.population_refitness(
                         i,
@@ -691,21 +687,20 @@ impl<T: PartialEq + Send + Sync, Ind: Genotype<T>> GeneticExecution<T, Ind> {
                         n_solutions,
                     );
                     if (new_fit - fit.fitness).abs() > 0.000_001 {
-                        s.send((
-                            i,
-                            Some(Fitness {
-                                fitness: new_fit,
-                                age: fit.age,
-                                original_fitness: fit.original_fitness,
-                                age_effect: fit.age_effect,
-                                refitness_effect: new_fit - fit.fitness,
-                            }),
-                        ))
-                        .unwrap()
+                        let fit = Some(Fitness {
+                            fitness: new_fit,
+                            age: fit.age,
+                            original_fitness: fit.original_fitness,
+                            age_effect: fit.age_effect,
+                            refitness_effect: new_fit - fit.fitness,
+                        });
+
+                        fits.push((i, fit));
                     }
                 }
             });
-        for (i, fit) in receiver {
+
+        for (i, fit) in fits {
             self.population[i].fitness = fit;
         }
     }

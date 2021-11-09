@@ -80,7 +80,7 @@ impl<T: PartialEq + Send + Sync, G: Genotype<T>> PopulationRefitness<T, G>
                 let mut current_fitness = fit.original_fitness + fit.age_effect;
                 if current_fitness > 0.0 {
                     let mut m = population
-                        .par_iter()
+                        .iter()
                         .enumerate()
                         .filter(|(i, _ind)| *i != individual_index)
                         .map(|(_i, ind)| current_ind.distance(&ind.ind))
