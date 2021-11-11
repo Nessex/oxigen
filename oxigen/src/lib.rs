@@ -506,6 +506,7 @@ impl<T: PartialEq + Send + Sync, Ind: Genotype<T>> GeneticExecution<T, Ind> {
     #[cfg(feature = "global_cache")]
     fn compute_fitnesses(&mut self, refresh_on_nocache: bool) {
         if cfg!(feature = "global_cache") && self.cache_fitness && self.global_cache {
+            let mut fits = Vec::new();
             self.population
                 .iter()
                 .enumerate()
@@ -519,16 +520,20 @@ impl<T: PartialEq + Send + Sync, Ind: Genotype<T>> GeneticExecution<T, Ind> {
                         }
                     };
 
-                    self.population[i].fitness = Some(Fitness {
+                    fits.push((i, Some(Fitness {
                         age: 0,
                         fitness: new_fit_value,
                         original_fitness: new_fit_value,
                         age_effect: 0.0,
                         refitness_effect: 0.0,
-                    });
+                    })));
                     // insert in cache if it is not already in it
                     self.cache_map.entry(hashed_ind).or_insert(new_fit_value);
                 });
+
+            for (i, fit) in fits {
+                self.population[i].fitness = fit;
+            }
         } else {
             self.compute_fitnesses_without_global_cache(refresh_on_nocache);
         }
