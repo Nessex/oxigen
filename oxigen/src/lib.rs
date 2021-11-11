@@ -520,19 +520,19 @@ impl<T: PartialEq + Send + Sync, Ind: Genotype<T>> GeneticExecution<T, Ind> {
                         }
                     };
 
-                    fits.push((i, Some(Fitness {
+                    fits.push((hashed_ind, new_fit_value, i, Some(Fitness {
                         age: 0,
                         fitness: new_fit_value,
                         original_fitness: new_fit_value,
                         age_effect: 0.0,
                         refitness_effect: 0.0,
                     })));
-                    // insert in cache if it is not already in it
-                    self.cache_map.entry(hashed_ind).or_insert(new_fit_value);
                 });
 
-            for (i, fit) in fits {
+            for (hashed_ind, new_fit_value, i, fit) in fits {
                 self.population[i].fitness = fit;
+                // insert in cache if it is not already in it
+                self.cache_map.entry(hashed_ind).or_insert(new_fit_value);
             }
         } else {
             self.compute_fitnesses_without_global_cache(refresh_on_nocache);
